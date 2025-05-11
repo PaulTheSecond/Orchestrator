@@ -1,0 +1,74 @@
+<div class="container">
+  <div class="card">
+    <div class="card-header">
+      <h3>Create Application</h3>
+    </div>
+    <div class="card-body">
+      <div *ngIf="error" class="alert alert-danger">{{ error }}</div>
+      <div *ngIf="successMessage" class="alert alert-success">{{ successMessage }}</div>
+
+      <form [formGroup]="applicationForm" (ngSubmit)="submitForm()">
+        <div class="mb-3">
+          <label for="contestInstanceId" class="form-label">Contest Instance:</label>
+          <select
+            id="contestInstanceId"
+            formControlName="contestInstanceId"
+            class="form-select"
+            [ngClass]="{'is-invalid': applicationForm.get('contestInstanceId')?.invalid && applicationForm.get('contestInstanceId')?.touched}"
+            [disabled]="!!contestId"
+          >
+            <option value="">Select a contest instance</option>
+            <option *ngFor="let instance of contestInstances" [value]="instance.id">
+              {{ instance.name }}
+            </option>
+          </select>
+          <div class="invalid-feedback" *ngIf="applicationForm.get('contestInstanceId')?.errors?.['required']">
+            Contest instance is required
+          </div>
+        </div>
+
+        <div class="mb-3">
+          <label for="externalApplicationId" class="form-label">External Application ID (Optional):</label>
+          <input
+            type="text"
+            id="externalApplicationId"
+            formControlName="externalApplicationId"
+            class="form-control"
+            placeholder="External system reference ID"
+          >
+          <small class="form-text text-muted">Optional reference ID from an external system</small>
+        </div>
+
+        <div class="mb-3">
+          <label for="applicationData" class="form-label">Application Data (JSON):</label>
+          <textarea
+            id="applicationData"
+            formControlName="applicationData"
+            class="form-control json-editor"
+            rows="10"
+            placeholder="Enter application data in JSON format..."
+            [ngClass]="{'is-invalid': (applicationForm.get('applicationData')?.invalid && applicationForm.get('applicationData')?.touched) || !isValidJson()}"
+          ></textarea>
+          <div class="invalid-feedback" *ngIf="applicationForm.get('applicationData')?.errors?.['required']">
+            Application data is required
+          </div>
+          <div class="invalid-feedback" *ngIf="!isValidJson() && applicationForm.get('applicationData')?.value">
+            Invalid JSON format
+          </div>
+        </div>
+
+        <div class="d-flex justify-content-between">
+          <button type="button" class="btn btn-secondary" (click)="cancel()">Cancel</button>
+          <button
+            type="submit"
+            class="btn btn-primary"
+            [disabled]="loading || applicationForm.invalid || !isValidJson()"
+          >
+            <span *ngIf="loading" class="spinner-border spinner-border-sm me-1"></span>
+            Create Application
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>

@@ -1,0 +1,268 @@
+<div class="container">
+  <!-- List View -->
+  <div *ngIf="!selectedInstance" class="card">
+    <div class="card-header d-flex justify-content-between align-items-center">
+      <h3>Contest Instances</h3>
+      <button class="btn btn-primary" (click)="createContestInstance()">
+        <i class="bi bi-plus-circle"></i> Create Contest Instance
+      </button>
+    </div>
+    <div class="card-body">
+      <div *ngIf="error" class="alert alert-danger alert-dismissible">
+        {{ error }}
+        <button type="button" class="btn-close" (click)="dismissAlert()"></button>
+      </div>
+      <div *ngIf="successMessage" class="alert alert-success alert-dismissible">
+        {{ successMessage }}
+        <button type="button" class="btn-close" (click)="dismissAlert()"></button>
+      </div>
+
+      <div *ngIf="loading" class="text-center my-3">
+        <div class="spinner-border text-primary"></div>
+        <p class="mt-2">Loading contest instances...</p>
+      </div>
+
+      <div *ngIf="!loading && contestInstances.length === 0" class="alert alert-info">
+        No contest instances found. Click 'Create Contest Instance' to add one.
+      </div>
+
+      <div *ngIf="!loading && contestInstances.length > 0" class="table-responsive">
+        <table class="table table-hover">
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>Template Version</th>
+              <th>Status</th>
+              <th>Start Date</th>
+              <th>End Date</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr *ngFor="let instance of contestInstances">
+              <td>
+                <a href="javascript:void(0)" (click)="viewInstance(instance.id!)">{{ instance.name }}</a>
+              </td>
+              <td>v{{ instance.contestTemplateVersion }}</td>
+              <td>
+                <span class="badge" [ngClass]="getStatusClass(instance.status)">
+                  {{ instance.status }}
+                </span>
+              </td>
+              <td>{{ instance.startDate | date:'short' }}</td>
+              <td>{{ instance.endDate | date:'short' }}</td>
+              <td>
+                <div class="btn-group">
+                  <button class="btn btn-sm btn-outline-primary" (click)="viewInstance(instance.id!)">
+                    <i class="bi bi-eye"></i> Details
+                  </button>
+                  <button class="btn btn-sm btn-outline-info" (click)="viewApplications(instance.id!)">
+                    <i class="bi bi-list-check"></i> Applications
+                  </button>
+                  <button 
+                    class="btn btn-sm btn-outline-danger" 
+                    (click)="openInterruptModal(instance.id!)"
+                    [disabled]="instance.status === 'Completed' || instance.status === 'Interrupted'">
+                    <i class="bi bi-x-circle"></i> Interrupt
+                  </button>
+                </div>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- Detail View -->
+  <div *ngIf="selectedInstance" class="card">
+    <div class="card-header d-flex justify-content-between align-items-center">
+      <div>
+        <button class="btn btn-sm btn-outline-secondary me-2" (click)="goBack()">
+          <i class="bi bi-arrow-left"></i> Back
+        </button>
+        <span class="h3">{{ selectedInstance.name }}</span>
+      </div>
+      <div>
+        <button 
+          class="btn btn-outline-info me-2" 
+          (click)="viewProcedureInstance(selectedInstance.procedureInstanceId)"
+          title="View parent procedure">
+          <i class="bi bi-arrow-up-circle"></i> View Procedure
+        </button>
+        <button 
+          class="btn btn-outline-primary me-2" 
+          (click)="createApplication(selectedInstance.id!)"
+          [disabled]="selectedInstance.status === 'Completed' || selectedInstance.status === 'Interrupted'">
+          <i class="bi bi-plus-circle"></i> Create Application
+        </button>
+        <button 
+          class="btn btn-outline-danger" 
+          (click)="openInterruptModal(selectedInstance.id!)"
+          [disabled]="selectedInstance.status === 'Completed' || selectedInstance.status === 'Interrupted'">
+          <i class="bi bi-x-circle"></i> Interrupt Contest
+        </button>
+      </div>
+    </div>
+    <div class="card-body">
+      <div *ngIf="error" class="alert alert-danger alert-dismissible">
+        {{ error }}
+        <button type="button" class="btn-close" (click)="dismissAlert()"></button>
+      </div>
+      <div *ngIf="successMessage" class="alert alert-success alert-dismissible">
+        {{ successMessage }}
+        <button type="button" class="btn-close" (click)="dismissAlert()"></button>
+      </div>
+
+      <div *ngIf="loading" class="text-center my-3">
+        <div class="spinner-border text-primary"></div>
+        <p class="mt-2">Loading contest instance details...</p>
+      </div>
+
+      <div *ngIf="!loading">
+        <div class="row mb-4">
+          <div class="col-md-6">
+            <div class="card">
+              <div class="card-header">
+                <h5>Contest Details</h5>
+              </div>
+              <div class="card-body">
+                <table class="table table-bordered">
+                  <tbody>
+                    <tr>
+                      <th style="width: 150px;">Template Version:</th>
+                      <td>v{{ selectedInstance.contestTemplateVersion }}</td>
+                    </tr>
+                    <tr>
+                      <th>Status:</th>
+                      <td>
+                        <span class="badge" [ngClass]="getStatusClass(selectedInstance.status)">
+                          {{ selectedInstance.status }}
+                        </span>
+                      </td>
+                    </tr>
+                    <tr>
+                      <th>Start Date:</th>
+                      <td>{{ selectedInstance.startDate | date:'medium' }}</td>
+                    </tr>
+                    <tr>
+                      <th>End Date:</th>
+                      <td>{{ selectedInstance.endDate ? (selectedInstance.endDate | date:'medium') : 'Not completed' }}</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+
+          <div class="col-md-6">
+            <div class="card">
+              <div class="card-header">
+                <h5>Stage Configurations</h5>
+              </div>
+              <div class="card-body">
+                <div *ngIf="!selectedInstance.stageConfigurations || selectedInstance.stageConfigurations.length === 0" class="alert alert-info">
+                  No stage configurations found.
+                </div>
+                <div *ngIf="selectedInstance.stageConfigurations && selectedInstance.stageConfigurations.length > 0">
+                  <div *ngFor="let config of selectedInstance.stageConfigurations" class="mb-3">
+                    <div class="card">
+                      <div class="card-header d-flex justify-content-between align-items-center">
+                        <h6 class="mb-0">Stage {{ config.stageTemplateId.substring(0, 8) }}</h6>
+                        <span 
+                          class="badge" 
+                          [ngClass]="selectedInstance.currentStageId === config.stageTemplateId ? 'bg-primary' : 'bg-secondary'">
+                          {{ selectedInstance.currentStageId === config.stageTemplateId ? 'Current' : '' }}
+                        </span>
+                      </div>
+                      <div class="card-body">
+                        <div><strong>Service:</strong> {{ config.serviceName }}</div>
+                        <div><strong>Start Date:</strong> {{ config.startDate | date:'short' }}</div>
+                        <div><strong>End Date:</strong> {{ config.endDate | date:'short' }}</div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <h4>Applications</h4>
+        <div class="mb-3">
+          <button class="btn btn-primary" (click)="viewApplications(selectedInstance.id!)">
+            <i class="bi bi-list-check"></i> View All Applications
+          </button>
+        </div>
+        
+        <div *ngIf="!selectedInstance.applicationInstances || selectedInstance.applicationInstances.length === 0" class="alert alert-info">
+          No applications found. Click 'Create Application' to add one.
+        </div>
+
+        <div *ngIf="selectedInstance.applicationInstances && selectedInstance.applicationInstances.length > 0" class="table-responsive">
+          <table class="table table-hover">
+            <thead>
+              <tr>
+                <th>ID</th>
+                <th>Status</th>
+                <th>Current Stage</th>
+                <th>Created</th>
+                <th>Updated</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr *ngFor="let app of selectedInstance.applicationInstances">
+                <td>{{ app.id!.substring(0, 8) }}...</td>
+                <td>
+                  <span class="badge" [ngClass]="'status-' + app.status.toLowerCase()">
+                    {{ app.status }}
+                  </span>
+                </td>
+                <td>{{ app.currentStageId ? (app.currentStageId.substring(0, 8) + '...') : 'N/A' }}</td>
+                <td>{{ app.createdAt | date:'short' }}</td>
+                <td>{{ app.updatedAt | date:'short' }}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Interrupt Modal -->
+  <div class="modal" [style.display]="showInterruptModal ? 'block' : 'none'" tabindex="-1">
+    <div class="modal-dialog">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title">Interrupt Contest</h5>
+          <button type="button" class="btn-close" (click)="closeInterruptModal()"></button>
+        </div>
+        <div class="modal-body">
+          <div class="mb-3">
+            <label for="interruptReason" class="form-label">Reason for interruption:</label>
+            <textarea
+              id="interruptReason"
+              class="form-control"
+              rows="3"
+              [(ngModel)]="interruptReason"
+              placeholder="Please provide a reason for interrupting this contest..."
+            ></textarea>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" (click)="closeInterruptModal()">Cancel</button>
+          <button
+            type="button"
+            class="btn btn-danger"
+            [disabled]="!interruptReason || loading"
+            (click)="interruptContest()"
+          >
+            <span *ngIf="loading" class="spinner-border spinner-border-sm me-1"></span>
+            Interrupt Contest
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="modal-backdrop fade show" *ngIf="showInterruptModal"></div>
+</div>

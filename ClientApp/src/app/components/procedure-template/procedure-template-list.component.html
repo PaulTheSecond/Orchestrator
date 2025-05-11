@@ -1,0 +1,94 @@
+<div class="container">
+  <div class="card">
+    <div class="card-header d-flex justify-content-between align-items-center">
+      <h3>Procedure Templates</h3>
+      <div class="d-flex">
+        <button class="btn btn-outline-primary me-2" (click)="triggerFileInput()">
+          <i class="bi bi-upload"></i> Import
+        </button>
+        <input 
+          type="file" 
+          #fileInput
+          style="display: none"
+          (change)="onFileSelected($event)"
+          accept=".json">
+        <button class="btn btn-primary" (click)="createTemplate()">
+          <i class="bi bi-plus-circle"></i> Create Template
+        </button>
+      </div>
+    </div>
+    <div class="card-body">
+      <div *ngIf="error" class="alert alert-danger alert-dismissible">
+        {{ error }}
+        <button type="button" class="btn-close" (click)="dismissAlert()"></button>
+      </div>
+      <div *ngIf="successMessage" class="alert alert-success alert-dismissible">
+        {{ successMessage }}
+        <button type="button" class="btn-close" (click)="dismissAlert()"></button>
+      </div>
+
+      <div *ngIf="loading" class="text-center my-3">
+        <div class="spinner-border text-primary"></div>
+        <p class="mt-2">Loading templates...</p>
+      </div>
+
+      <div *ngIf="!loading && templates.length === 0" class="alert alert-info">
+        No procedure templates found. Click 'Create Template' to add one.
+      </div>
+
+      <div *ngIf="!loading && templates.length > 0" class="table-responsive">
+        <table class="table table-hover">
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>Version</th>
+              <th>Stages</th>
+              <th>Published</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr *ngFor="let template of templates">
+              <td>{{ template.name }}</td>
+              <td>{{ template.version }}</td>
+              <td>
+                <span *ngFor="let stage of template.procedureStages; let last = last">
+                  {{ stage.stageType }}{{ !last ? ' → ' : '' }}
+                </span>
+              </td>
+              <td>
+                <span class="badge" [ngClass]="template.isPublished ? 'bg-success' : 'bg-secondary'">
+                  {{ template.isPublished ? 'Yes' : 'No' }}
+                </span>
+              </td>
+              <td>
+                <div class="btn-group">
+                  <button class="btn btn-sm btn-outline-primary" (click)="editTemplate(template.id!)">
+                    <i class="bi bi-pencil"></i> Edit
+                  </button>
+                  <button 
+                    class="btn btn-sm btn-outline-success" 
+                    (click)="publishTemplate(template.id!)"
+                    [disabled]="template.isPublished">
+                    <i class="bi bi-arrow-up-circle"></i> Publish
+                  </button>
+                  <button 
+                    class="btn btn-sm btn-outline-info" 
+                    (click)="exportTemplate(template.id!)">
+                    <i class="bi bi-download"></i> Export
+                  </button>
+                  <button 
+                    class="btn btn-sm btn-outline-danger" 
+                    (click)="deleteTemplate(template.id!)"
+                    [disabled]="template.isPublished">
+                    <i class="bi bi-trash"></i> Delete
+                  </button>
+                </div>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>

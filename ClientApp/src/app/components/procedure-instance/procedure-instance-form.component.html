@@ -1,0 +1,58 @@
+<div class="container">
+  <div class="card">
+    <div class="card-header">
+      <h3>Create Procedure Instance</h3>
+    </div>
+    <div class="card-body">
+      <div *ngIf="error" class="alert alert-danger">{{ error }}</div>
+      <div *ngIf="successMessage" class="alert alert-success">{{ successMessage }}</div>
+
+      <form [formGroup]="instanceForm" (ngSubmit)="submitForm()">
+        <div class="mb-3">
+          <label for="procedureTemplateId" class="form-label">Procedure Template:</label>
+          <select
+            id="procedureTemplateId"
+            formControlName="procedureTemplateId"
+            class="form-select"
+            [ngClass]="{'is-invalid': instanceForm.get('procedureTemplateId')?.invalid && instanceForm.get('procedureTemplateId')?.touched}"
+          >
+            <option value="">Select a procedure template</option>
+            <option *ngFor="let template of procedureTemplates" [value]="template.id">
+              {{ template.name }} (v{{ template.version }})
+            </option>
+          </select>
+          <div class="invalid-feedback" *ngIf="instanceForm.get('procedureTemplateId')?.errors?.['required']">
+            Procedure template is required
+          </div>
+        </div>
+
+        <div class="mb-3">
+          <label for="name" class="form-label">Instance Name:</label>
+          <input
+            type="text"
+            id="name"
+            formControlName="name"
+            class="form-control"
+            placeholder="Subsidy Procedure 2023"
+            [ngClass]="{'is-invalid': instanceForm.get('name')?.invalid && instanceForm.get('name')?.touched}"
+          >
+          <div class="invalid-feedback" *ngIf="instanceForm.get('name')?.errors?.['required']">
+            Name is required
+          </div>
+        </div>
+
+        <div class="d-flex justify-content-between">
+          <button type="button" class="btn btn-secondary" (click)="cancel()">Cancel</button>
+          <button
+            type="submit"
+            class="btn btn-primary"
+            [disabled]="loading || instanceForm.invalid"
+          >
+            <span *ngIf="loading" class="spinner-border spinner-border-sm me-1"></span>
+            Create Procedure Instance
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>

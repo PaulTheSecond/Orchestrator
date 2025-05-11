@@ -1,0 +1,240 @@
+<div class="container">
+  <div class="card">
+    <div class="card-header">
+      <h3>{{ editMode ? 'Edit' : 'Create' }} Contest Template</h3>
+    </div>
+    <div class="card-body">
+      <div *ngIf="error" class="alert alert-danger">{{ error }}</div>
+      <div *ngIf="successMessage" class="alert alert-success">{{ successMessage }}</div>
+
+      <div class="mb-3 text-end">
+        <button class="btn btn-outline-secondary" (click)="toggleJsonMode()">
+          {{ jsonMode ? 'Form Mode' : 'JSON Mode' }}
+        </button>
+      </div>
+
+      <div *ngIf="jsonMode">
+        <div class="mb-3">
+          <label for="jsonEditor" class="form-label">Template JSON:</label>
+          <textarea
+            id="jsonEditor"
+            class="form-control json-editor"
+            [(ngModel)]="jsonValue"
+            placeholder="Enter JSON for contest template..."
+          ></textarea>
+        </div>
+      </div>
+
+      <form *ngIf="!jsonMode" [formGroup]="templateForm" (ngSubmit)="submitForm()">
+        <div class="row mb-3">
+          <div class="col-md-6">
+            <label for="procedureTemplateId" class="form-label">Procedure Template:</label>
+            <select
+              id="procedureTemplateId"
+              formControlName="procedureTemplateId"
+              class="form-select"
+              [ngClass]="{'is-invalid': templateForm.get('procedureTemplateId')?.invalid && templateForm.get('procedureTemplateId')?.touched}"
+            >
+              <option value="">Select a procedure template</option>
+              <option *ngFor="let template of procedureTemplates" [value]="template.id">
+                {{ template.name }} (v{{ template.version }})
+              </option>
+            </select>
+            <div class="invalid-feedback" *ngIf="templateForm.get('procedureTemplateId')?.errors?.['required']">
+              Procedure template is required
+            </div>
+          </div>
+          <div class="col-md-6">
+            <label for="name" class="form-label">Name:</label>
+            <input
+              type="text"
+              id="name"
+              formControlName="name"
+              class="form-control"
+              placeholder="Subsidy Contest"
+              [ngClass]="{'is-invalid': templateForm.get('name')?.invalid && templateForm.get('name')?.touched}"
+            >
+            <div class="invalid-feedback" *ngIf="templateForm.get('name')?.errors?.['required']">
+              Name is required
+            </div>
+          </div>
+        </div>
+
+        <div class="row mb-3">
+          <div class="col-md-3">
+            <label for="version" class="form-label">Version:</label>
+            <input
+              type="number"
+              id="version"
+              formControlName="version"
+              class="form-control"
+              min="1"
+              [ngClass]="{'is-invalid': templateForm.get('version')?.invalid && templateForm.get('version')?.touched}"
+            >
+            <div class="invalid-feedback" *ngIf="templateForm.get('version')?.errors?.['required']">
+              Version is required
+            </div>
+            <div class="invalid-feedback" *ngIf="templateForm.get('version')?.errors?.['min']">
+              Version must be at least 1
+            </div>
+          </div>
+          <div class="col-md-3">
+            <label class="form-label d-block">Published:</label>
+            <div class="form-check form-switch">
+              <input
+                class="form-check-input"
+                type="checkbox"
+                id="isPublished"
+                formControlName="isPublished"
+                [disabled]="true"
+              >
+              <label class="form-check-label" for="isPublished">
+                {{ templateForm.get('isPublished')?.value ? 'Yes' : 'No' }}
+              </label>
+            </div>
+            <small class="form-text text-muted">Use the Publish action after saving</small>
+          </div>
+        </div>
+
+        <h4 class="mb-3">Status Model</h4>
+        <div class="alert alert-info" *ngIf="!templateForm.get('statusModel')?.value?.length">
+          No statuses defined. Add at least one status.
+        </div>
+
+        <div class="mb-3">
+          <div class="d-flex flex-wrap mb-2">
+            <div 
+              *ngFor="let status of templateForm.get('statusModel')?.value; let i = index" 
+              class="input-group me-2 mb-2" 
+              style="max-width: 250px;"
+            >
+              <input 
+                type="text" 
+                class="form-control"
+                [value]="status"
+                (input)="updateStatus(i, $event)"
+                placeholder="Status name"
+              >
+              <button class="btn btn-outline-danger" type="button" (click)="removeStatus(i)">
+                <i class="bi bi-x"></i>
+              </button>
+            </div>
+          </div>
+          <button type="button" class="btn btn-outline-primary" (click)="addStatus()">
+            <i class="bi bi-plus-circle"></i> Add Status
+          </button>
+        </div>
+
+        <h4 class="mb-3">Contest Stages</h4>
+        <div class="alert alert-info" *ngIf="stages.length === 0">
+          No stages defined. Add at least one stage.
+        </div>
+
+        <div formArrayName="stages">
+          <div
+            *ngFor="let stageForm of stages.controls; let i = index"
+            [formGroupName]="i"
+            class="card mb-3"
+          >
+            <div class="card-header d-flex justify-content-between align-items-center">
+              <span>Stage {{ i + 1 }}</span>
+              <div class="btn-group">
+                <button
+                  type="button"
+                  class="btn btn-sm btn-outline-secondary"
+                  [disabled]="i === 0"
+                  (click)="moveStageUp(i)"
+                >
+                  <i class="bi bi-arrow-up"></i> Up
+                </button>
+                <button
+                  type="button"
+                  class="btn btn-sm btn-outline-secondary"
+                  [disabled]="i === stages.length - 1"
+                  (click)="moveStageDown(i)"
+                >
+                  <i class="bi bi-arrow-down"></i> Down
+                </button>
+                <button
+                  type="button"
+                  class="btn btn-sm btn-outline-danger"
+                  (click)="removeStage(i)"
+                >
+                  <i class="bi bi-trash"></i> Remove
+                </button>
+              </div>
+            </div>
+            <div class="card-body">
+              <div class="row mb-3">
+                <div class="col-md-6">
+                  <label for="stageType-{{i}}" class="form-label">Stage Type:</label>
+                  <select
+                    id="stageType-{{i}}"
+                    formControlName="stageType"
+                    class="form-select"
+                    [ngClass]="{'is-invalid': stageForm.get('stageType')?.invalid && stageForm.get('stageType')?.touched}"
+                  >
+                    <option value="">Select a stage type</option>
+                    <option *ngFor="let type of stageTypes" [value]="type">{{ type }}</option>
+                  </select>
+                  <div class="invalid-feedback" *ngIf="stageForm.get('stageType')?.errors?.['required']">
+                    Stage type is required
+                  </div>
+                </div>
+                <div class="col-md-6">
+                  <label for="defaultServiceName-{{i}}" class="form-label">Default Service Name:</label>
+                  <input
+                    type="text"
+                    id="defaultServiceName-{{i}}"
+                    formControlName="defaultServiceName"
+                    class="form-control"
+                    placeholder="ServiceName"
+                    [ngClass]="{'is-invalid': stageForm.get('defaultServiceName')?.invalid && stageForm.get('defaultServiceName')?.touched}"
+                  >
+                  <div class="invalid-feedback" *ngIf="stageForm.get('defaultServiceName')?.errors?.['required']">
+                    Default service name is required
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="mb-3">
+          <button
+            type="button"
+            class="btn btn-outline-primary"
+            (click)="addStage()"
+          >
+            <i class="bi bi-plus-circle"></i> Add Stage
+          </button>
+        </div>
+
+        <div class="d-flex justify-content-between">
+          <button type="button" class="btn btn-secondary" (click)="cancel()">Cancel</button>
+          <button
+            type="submit"
+            class="btn btn-primary"
+            [disabled]="loading"
+          >
+            <span *ngIf="loading" class="spinner-border spinner-border-sm me-1"></span>
+            {{ editMode ? 'Update' : 'Create' }} Template
+          </button>
+        </div>
+      </form>
+
+      <div *ngIf="jsonMode" class="d-flex justify-content-between mt-3">
+        <button type="button" class="btn btn-secondary" (click)="cancel()">Cancel</button>
+        <button
+          type="button"
+          class="btn btn-primary"
+          [disabled]="loading"
+          (click)="submitForm()"
+        >
+          <span *ngIf="loading" class="spinner-border spinner-border-sm me-1"></span>
+          {{ editMode ? 'Update' : 'Create' }} Template
+        </button>
+      </div>
+    </div>
+  </div>
+</div>

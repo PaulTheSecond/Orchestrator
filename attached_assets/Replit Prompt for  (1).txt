@@ -1,0 +1,356 @@
+**Technology Stack**:
+
+- **Backend**:
+  - .NET 8 (C#)
+  - Entity Framework Core (for PostgreSQL integration)
+  - EasyNetQ (for RabbitMQ integration)
+
+- **Frontend**:
+  - Angular 17 (embedded and hosted within ASP.NET Core)
+  - Angular Reactive Forms (for JSON input handling)
+  - HttpClient (for REST API communication with backend)
+
+- **Database**:
+  - PostgreSQL
+
+- **Messaging**:
+  - RabbitMQ (using topic-based exchange)
+  - Message Type: `RabbitMessage<T> where T : IRabbitMessage`
+    ```csharp
+    public class RabbitMessage<T> where T : IRabbitMessage
+    {
+        public Guid IntegrationEventId { get; set; } // Unique event ID for logging
+        public T Data { get; set; } // Payload
+    }
+    public interface IRabbitMessage { }
+    ```
+
+- **Development Environment**:
+  - Replit (configured for .NET 8, hosting Angular within ASP.NET Core, PostgreSQL, and RabbitMQ)
+
+**Business Requirements**:
+
+The **Procedure Template** is a global, reusable template (e.g., "Subsidy Procedure") with integer-based versioning, defining procedure stages (Setup, Contests, Contracts, Reporting), where the Contests stage is mandatory, and others are optional. The Contests stage manages the creation and configuration of **Contest Instances** with customizable stage parameters (dates, service associations). Each **Contest Template** defines a fixed sequence of stages (ApplicationSubmission, Validation, Expertise, FundAllocation, WinnerAnnouncement) and a unified status model (e.g., ["NotStarted", "InProgress", "Completed", "Interrupted"]) for all Contest Instances. After a ProcedureTemplate is published, **Procedure Instances** are created, within which Contest Instances are created during the Contests stage. Contest Instances support interruption, completion, and versioning updates from new published **ContestTemplate** versions. The orchestrator manages stage transitions for Procedure Instances and Application Instances, processes stage results, and reacts to version updates via RabbitMQ events. The structure is stored in PostgreSQL.
+
+- **Procedure Stages**: Setup, Contests (mandatory), Contracts, Reporting.
+- **Contest Stages**: ApplicationSubmission, Validation, Expertise, FundAllocation, WinnerAnnouncement.
+- **Stage Properties**:
+  - Fixed sequence defined in ProcedureTemplate or ContestTemplate (via Order, PreviousStageId, NextStageId).
+  - External service association (default in templates, customizable in StageConfiguration for contests).
+  - Dates configured in StageConfiguration for contest stages (not in templates).
+- **Orchestration**:
+  - Tracks ProcedureInstance stage transitions, enabling ContestInstance creation during the Contests stage.
+  - Processes RabbitMQ events (e.g., "CreateApplication", "StageCompleted", "InterruptContest", "ContestTemplateUpdated").
+  - Updates ApplicationInstance status and stage based on stage results, triggers next stages, or terminates applications.
+  - Transitions ProcedureInstance to the next stage (e.g., Contracts) when all ContestInstances complete or are interrupted.
+  - Validates ContestInstance statuses against the ContestTemplate’s StatusModel.
+  - Supports ContestTemplate versioning by updating StageConfigurations in running ContestInstances.
+
+**Data Structure**:
+- **ProcedureTemplate**:
+  - `Id` (Guid), `Name` (string), `Version` (int), `IsPublished` (bool), `CreatedAt` (DateTime), `UpdatedAt` (DateTime), `ProcedureStages` (List<ProcedureStageTemplate>), `ContestTemplates` (List<ContestTemplate>).
+- **ProcedureStageTemplate**:
+  - `Id` (Guid), `ProcedureTemplateId` (Guid), `StageType` (string: "Setup", "Contests", "Contracts", "Reporting"), `Order` (int), `PreviousStageId` (Guid?), `NextStageId` (Guid?), `DefaultServiceName` (string?).
+- **ContestTemplate**:
+  - `Id` (Guid), `ProcedureTemplateId` (Guid), `Name` (string), `Version` (int), `IsPublished` (bool), `StatusModel` (string[]), `Stages` (List<StageTemplate>).
+- **StageTemplate**:
+  - `Id` (Guid), `ContestTemplateId` (Guid), `StageType` (string: "ApplicationSubmission", "Validation", "Expertise", "FundAllocation", "WinnerAnnouncement"), `Order` (int), `PreviousStageId` (Guid?), `NextStageId` (Guid?), `DefaultServiceName` (string).
+- **ProcedureInstance**:
+  - `Id` (Guid), `ProcedureTemplateId` (Guid), `TemplateVersion` (int), `Name` (string), `CurrentStageId` (Guid?), `Status` (string: "Active", "Completed", "Paused"), `CreatedAt` (DateTime), `UpdatedAt` (DateTime), `ContestInstances` (List<ContestInstance>).
+- **ContestInstance**:
+  - `Id` (Guid), `ProcedureInstanceId` (Guid), `ContestTemplateId` (Guid), `ContestTemplateVersion` (int), `Name` (string), `CurrentStageId` (Guid?), `Status` (string, from StatusModel), `StartDate` (DateTime?), `EndDate` (DateTime?), `StageConfigurations` (List<StageConfiguration>), `ApplicationInstances` (List<ApplicationInstance>).
+- **StageConfiguration**:
+  - `Id` (Guid), `ContestInstanceId` (Guid), `StageTemplateId` (Guid), `StartDate` (DateTime?), `EndDate` (DateTime?), `ServiceName` (string).
+- **ApplicationInstance**:
+  - `Id` (Guid), `ContestInstanceId` (Guid), `CurrentStageId` (Guid?), `Status` (string: "Submitted", "Validated", "Approved", "Rejected", "Interrupted"), `CreatedAt` (DateTime), `UpdatedAt` (DateTime), `ExternalApplicationId` (Guid?), `StageResults` (List<StageResult>).
+- **StageResult**:
+  - `Id` (Guid), `ApplicationInstanceId` (Guid), `StageTemplateId` (Guid), `ResultStatus` (string: "Success", "Failed", "Rejected"), `ResultData` (string?), `CompletedAt` (DateTime), `IntegrationEventId` (Guid).
+
+**Prompt**:
+
+Create a .NET 8 C# application with an embedded Angular 17 frontend, hosted within ASP.NET Core, and a PostgreSQL database to manage ProcedureTemplates, ProcedureInstances, and ContestInstances for a subsidy procedure. The app acts as an orchestrator, managing stage transitions for ProcedureInstances and ApplicationInstances, using ProcedureTemplates and ContestTemplates with integer-based versioning, and integrating with external services via RabbitMQ using EasyNetQ and topic-based exchanges, processing messages of type `RabbitMessage<T> where T : IRabbitMessage`. Ensure the following:
+
+1. **Backend (.NET 8, C#)**:
+   - Use Entity Framework Core for PostgreSQL to manage ProcedureTemplates, ProcedureStageTemplates, ContestTemplates, StageTemplates, ProcedureInstances, ContestInstances, StageConfigurations, ApplicationInstances, and StageResults.
+   - Implement a service to parse and validate JSON input for ProcedureTemplates, ensuring:
+     - Contests stage is mandatory; Setup, Contracts, Reporting are optional.
+     - Fixed stage sequences (via Order, PreviousStageId, NextStageId).
+     - Default service associations and unified status model for contests.
+     - Integer-based versioning (no dates in templates).
+   - Support ProcedureTemplate and ContestTemplate versioning (positive integers, e.g., 1, 2, 3), with only one version published at a time.
+   - Support ContestInstance creation during the Contests stage of a ProcedureInstance, allowing customization of contest stage parameters (dates, service names) via StageConfiguration, but enforcing fixed stage sequences and unified status model from ContestTemplate.
+   - Support procedure stages: Setup, Contests (mandatory), Contracts, Reporting.
+   - Support contest stages: ApplicationSubmission, Validation, Expertise, FundAllocation, WinnerAnnouncement.
+   - Allow customization of stage order, service associations, and status model in templates before publication, but lock them after publication.
+   - Implement orchestration logic:
+     - Track ProcedureInstance stage transitions, enabling ContestInstance creation during the Contests stage.
+     - Handle RabbitMQ events:
+       - `CreateApplication`: Create ApplicationInstance in a ContestInstance, trigger first stage.
+       - `StageCompleted`: Store result in StageResult, update ApplicationInstance’s `CurrentStageId` and `Status`, trigger next stage or terminate (e.g., if rejected).
+       - `InterruptContest`: Set ContestInstance `Status` to "Interrupted", update `EndDate`, mark ApplicationInstances as "Interrupted".
+       - `ContestTemplateUpdated`: Update `ContestTemplateVersion` and `StageConfigurations` in running ContestInstances, preserving fixed sequence and StatusModel.
+       - `ProcedureStageTransition`: Move ProcedureInstance to the next stage (e.g., Contracts) when all ContestInstances complete or are interrupted.
+     - Send RabbitMQ messages to external services (from StageConfiguration for contest stages, or DefaultServiceName for procedure stages) with ProcedureInstanceId, ContestInstanceId, ApplicationInstanceId, and CurrentStageId.
+     - Validate ContestInstance `Status` against ContestTemplate’s StatusModel.
+     - Ensure atomic updates using database transactions.
+   - Use the generic message type:
+     ```csharp
+     public class RabbitMessage<T> where T : IRabbitMessage
+     {
+         public Guid IntegrationEventId { get; set; }
+         public T Data { get; set; }
+     }
+     public interface IRabbitMessage { }
+     ```
+   - Implement `IRabbitMessage` implementations: `CreateApplicationEvent`, `StageStartedEvent`, `StageCompletedEvent` (with `ResultStatus`, `ResultData`), `InterruptContestEvent`, `ContestTemplateUpdatedEvent`, `ProcedureStageTransitionEvent`.
+   - Include CRUD operations for managing templates, instances, stage configurations, application states, and stage results in PostgreSQL.
+   - Ensure clean architecture with separation of concerns (Domain, Application, Infrastructure layers).
+
+2. **Frontend (Angular 17)**:
+   - Embed Angular 17 within the ASP.NET Core application for hosting.
+   - Create a minimal UI with:
+     - A form with a textarea for JSON input to define ProcedureTemplates (procedure stages, contest templates, fixed stage sequences, default service associations, status model, version, no dates).
+     - A form to create ContestInstances during the Contests stage, allowing customization of stage parameters (dates, service names).
+     - Buttons to:
+       - Create an application (`CreateApplication`).
+       - Interrupt a ContestInstance (`InterruptContest`).
+       - Transition ProcedureInstance stages (e.g., "Move to Contracts").
+     - Use Angular reactive forms for JSON submission and validation, providing feedback on invalid configurations (e.g., missing Contests stage, invalid stage sequences, or status model before publication).
+     - Display ProcedureInstance (current stage), ContestInstance, and ApplicationInstance statuses, including contest stage results, contest version, and progress, with success/error messages for actions.
+   - Communicate with the backend via REST API using HttpClient.
+
+3. **Database (PostgreSQL)**:
+   - Design a schema for ProcedureTemplates (with integer version, ProcedureStageTemplates), ContestTemplates (with integer version, StatusModel), StageTemplates (type, order, predecessor/successor, default service, no dates), ProcedureInstances (with CurrentStageId), ContestInstances (with CurrentStageId, ContestTemplateVersion, StageConfigurations), ApplicationInstances (with CurrentStageId, Status), and StageResults (with ResultStatus, ResultData).
+   - Use EF Core migrations to set up the schema with appropriate foreign keys and indexes.
+
+4. **RabbitMQ Integration**:
+   - Configure EasyNetQ to connect to a RabbitMQ server.
+   - Implement topic-based exchange for publishing/subscribing to messages using `RabbitMessage<T>`.
+   - Subscribe to events (`CreateApplication`, `StageCompleted`, `InterruptContest`, `ContestTemplateUpdated`, `ProcedureStageTransition`) and publish events for stage transitions, including ProcedureInstanceId, ContestInstanceId, ApplicationInstanceId, and ResultStatus.
+   - Ensure reliable message handling with error logging, using `IntegrationEventId` for idempotency.
+
+5. **Project Setup**:
+   - Structure the project for Replit compatibility, including dependencies in `.csproj` and `package.json`.
+   - Configure ASP.NET Core to serve the Angular 17 frontend.
+   - Provide a Dockerfile or Replit configuration for deployment.
+   - Include error handling (e.g., invalid JSON, RabbitMQ failures) and logging (e.g., Serilog) throughout the app.
+
+6. **Deliverables**:
+   - Full source code for backend (.NET 8, C#) and embedded frontend (Angular 17).
+   - SQL scripts or EF Core migrations for PostgreSQL schema.
+   - Configuration for RabbitMQ connection and topic exchange setup, supporting `RabbitMessage<T>`.
+   - Instructions for running the app on Replit, including dependency installation and environment setup.
+   - Sample JSON for ProcedureTemplate (with procedure stages, integer version, status model, no dates), ProcedureInstance, and ContestInstance with stage configurations.
+   - Sample `IRabbitMessage` implementations (e.g., `StageCompletedEvent`, `InterruptContestEvent`, `ContestTemplateUpdatedEvent`, `ProcedureStageTransitionEvent`).
+   - Example ApplicationInstance and ProcedureInstance state transition flow in the documentation, reflecting orchestrator functionality, customizable contest stage parameters, fixed stage sequences, unified contest status model, versioning, stage result handling, contest interruption, ContestTemplate version updates, and procedure stage management.
+
+**Sample JSON for ProcedureTemplate**:
+```json
+{
+  "id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+  "name": "Subsidy Procedure",
+  "version": 1,
+  "isPublished": false,
+  "procedureStages": [
+    {
+      "id": "1a2b3c4d-5e6f-7a8b-9c0d-1e2f3a4b5c6d",
+      "stageType": "Setup",
+      "order": 1,
+      "previousStageId": null,
+      "nextStageId": "2b3c4d5e-6f7a-8b9c-0d1e-2f3a4b5c6d7e",
+      "defaultServiceName": "SetupService"
+    },
+    {
+      "id": "2b3c4d5e-6f7a-8b9c-0d1e-2f3a4b5c6d7e",
+      "stageType": "Contests",
+      "order": 2,
+      "previousStageId": "1a2b3c4d-5e6f-7a8b-9c0d-1e2f3a4b5c6d",
+      "nextStageId": "3c4d5e6f-7a8b-9c0d-1e2f-3a4b5c6d7e8f",
+      "defaultServiceName": null
+    },
+    {
+      "id": "3c4d5e6f-7a8b-9c0d-1e2f-3a4b5c6d7e8f",
+      "stageType": "Contracts",
+      "order": 3,
+      "previousStageId": "2b3c4d5e-6f7a-8b9c-0d1e-2f3a4b5c6d7e",
+      "nextStageId": "4d5e6f7a-8b9c-0d1e-2f3a-4b5c6d7e8f9a",
+      "defaultServiceName": "ContractService"
+    },
+    {
+      "id": "4d5e6f7a-8b9c-0d1e-2f3a-4b5c6d7e8f9a",
+      "stageType": "Reporting",
+      "order": 4,
+      "previousStageId": "3c4d5e6f-7a8b-9c0d-1e2f-3a4b5c6d7e8f",
+      "nextStageId": null,
+      "defaultServiceName": "ReportingService"
+    }
+  ],
+  "contestTemplates": [
+    {
+      "id": "4b9e2c1a-8e3f-4d9c-b2a1-7d2e9f66afa6",
+      "name": "Subsidy Contest 2025",
+      "version": 1,
+      "isPublished": false,
+      "statusModel": ["NotStarted", "InProgress", "Completed", "Interrupted"],
+      "stages": [
+        {
+          "id": "5c8d3e2b-9f4a-5e0d-c3b2-8e3f0a77bgb7",
+          "stageType": "ApplicationSubmission",
+          "order": 1,
+          "previousStageId": null,
+          "nextStageId": "6d9e4f3c-0a5b-6f1e-d4c3-9f4a1b88chc8",
+          "defaultServiceName": "ApplicationService"
+        },
+        {
+          "id": "6d9e4f3c-0a5b-6f1e-d4c3-9f4a1b88chc8",
+          "stageType": "Validation",
+          "order": 2,
+          "previousStageId": "5c8d3e2b-9f4a-5e0d-c3b2-8e3f0a77bgb7",
+          "nextStageId": null,
+          "defaultServiceName": "ValidationService"
+        }
+      ]
+    }
+  ]
+}
+```
+
+**Sample JSON for ProcedureInstance**:
+```json
+{
+  "id": "7e9f5g6d-1b2c-3d4e-5f6a-7b8c9d0e1f2a",
+  "procedureTemplateId": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+  "templateVersion": 1,
+  "name": "Subsidy Procedure 2025",
+  "currentStageId": "2b3c4d5e-6f7a-8b9c-0d1e-2f3a4b5c6d7e",
+  "status": "Active",
+  "createdAt": "2025-04-30T00:00:00Z",
+  "updatedAt": "2025-04-30T00:00:00Z",
+  "contestInstances": [
+    {
+      "id": "8f0a6h7e-2c3d-4e5f-6a7b-8c9d0e1f2a3b",
+      "contestTemplateId": "4b9e2c1a-8e3f-4d9c-b2a1-7d2e9f66afa6",
+      "contestTemplateVersion": 1,
+      "name": "Subsidy Contest Q1 2025",
+      "currentStageId": "5c8d3e2b-9f4a-5e0d-c3b2-8e3f0a77bgb7",
+      "status": "InProgress",
+      "startDate": "2025-05-01T00:00:00Z",
+      "endDate": null,
+      "stageConfigurations": [
+        {
+          "id": "a1b2c3d4-5e6f-7a8b-9c0d-1e2f3a4b5c6d",
+          "stageTemplateId": "5c8d3e2b-9f4a-5e0d-c3b2-8e3f0a77bgb7",
+          "startDate": "2025-05-01T00:00:00Z",
+          "endDate": "2025-05-15T23:59:59Z",
+          "serviceName": "CustomApplicationService"
+        },
+        {
+          "id": "b2c3d4e5-6f7a-8b9c-0d1e-2f3a4b5c6d7e",
+          "stageTemplateId": "6d9e4f3c-0a5b-6f1e-d4c3-9f4a1b88chc8",
+          "startDate": "2025-05-16T00:00:00Z",
+          "endDate": "2025-05-20T23:59:59Z",
+          "serviceName": "CustomValidationService"
+        }
+      ],
+      "applicationInstances": [
+        {
+          "id": "9g1b7i8f-3d4e-5f6a-7b8c-9d0e1f2a3b4c",
+          "currentStageId": "5c8d3e2b-9f4a-5e0d-c3b2-8e3f0a77bgb7",
+          "status": "Submitted",
+          "createdAt": "2025-05-01T10:00:00Z",
+          "updatedAt": "2025-05-01T10:00:00Z",
+          "externalApplicationId": "a2c8j9g0-4e5f-6a7b-8c9d-0e1f2a3b4c5d",
+          "stageResults": [
+            {
+              "id": "b3d9i0j1-5f6a-7b8c-9d0e-1f2a3b4c5d6e",
+              "applicationInstanceId": "9g1b7i8f-3d4e-5f6a-7b8c-9d0e1f2a3b4c",
+              "stageTemplateId": "5c8d3e2b-9f4a-5e0d-c3b2-8e3f0a77bgb7",
+              "resultStatus": "Success",
+              "resultData": "{\"details\": \"Application submitted successfully\"}",
+              "completedAt": "2025-05-01T10:05:00Z",
+              "integrationEventId": "c4e0j1k2-6a7b-8c9d-0e1f-2a3b4c5d6e7f"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
+```
+
+**Sample RabbitMQ Messages**:
+- **StageCompletedEvent**:
+  ```json
+  {
+    "IntegrationEventId": "c4e0j1k2-6a7b-8c9d-0e1f-2a3b4c5d6e7f",
+    "Data": {
+      "ProcedureInstanceId": "7e9f5g6d-1b2c-3d4e-5f6a-7b8c9d0e1f2a",
+      "ContestInstanceId": "8f0a6h7e-2c3d-4e5f-6a7b-8c9d0e1f2a3b",
+      "ApplicationInstanceId": "9g1b7i8f-3d4e-5f6a-7b8c-9d0e1f2a3b4c",
+      "StageTemplateId": "5c8d3e2b-9f4a-5e0d-c3b2-8e3f0a77bgb7",
+      "ResultStatus": "Success",
+      "ResultData": "{\"details\": \"Application submitted successfully\"}"
+    }
+  }
+  ```
+- **InterruptContestEvent**:
+  ```json
+  {
+    "IntegrationEventId": "d5f1k2l3-7b8c-9d0e-1f2a-3b4c5d6e7f8a",
+    "Data": {
+      "ContestInstanceId": "8f0a6h7e-2c3d-4e5f-6a7b-8c9d0e1f2a3b"
+    }
+  }
+  ```
+- **ContestTemplateUpdatedEvent**:
+  ```json
+  {
+    "IntegrationEventId": "e6g2l3m4-8c9d-0e1f-2a3b-4c5d6e7f8a9b",
+    "Data": {
+      "ContestTemplateId": "4b9e2c1a-8e3f-4d9c-b2a1-7d2e9f66afa6",
+      "NewVersion": 2
+    }
+  }
+  ```
+- **ProcedureStageTransitionEvent**:
+  ```json
+  {
+    "IntegrationEventId": "f7h3m4n5-9d0e-1f2a-3b4c-5d6e7f8a9b0c",
+    "Data": {
+      "ProcedureInstanceId": "7e9f5g6d-1b2c-3d4e-5f6a-7b8c9d0e1f2a",
+      "StageTemplateId": "3c4d5e6f-7a8b-9c0d-1e2f-3a4b5c6d7e8f"
+    }
+  }
+  ```
+
+**Sample State Transition Flow**:
+1. **ProcedureInstance Creation**:
+   - Create ProcedureInstance from ProcedureTemplate (version 1).
+   - Set `CurrentStageId` to Setup (if present) or Contests.
+   - Status: "Active".
+2. **Contests Stage**:
+   - Create ContestInstance from ContestTemplate (version 1).
+   - Configure StageConfigurations with dates and service names.
+   - Status: "NotStarted" → "InProgress" on first application creation.
+3. **ApplicationInstance Processing**:
+   - Receive `CreateApplication` event, create ApplicationInstance, trigger `StageStartedEvent` for ApplicationSubmission.
+   - Receive `StageCompleted` event (ResultStatus: "Success"), store StageResult, move to Validation stage.
+   - If ResultStatus: "Rejected", set ApplicationInstance Status to "Rejected".
+   - When all ApplicationInstances are "Completed" or "Rejected", set ContestInstance Status to "Completed", update `EndDate`.
+4. **Procedure Stage Transition**:
+   - When all ContestInstances complete, move ProcedureInstance to Contracts stage (if present) via `ProcedureStageTransitionEvent`.
+   - Trigger external service (e.g., ContractService) for Contracts stage.
+5. **Contest Interruption**:
+   - Receive `InterruptContest` event, set ContestInstance Status to "Interrupted", update `EndDate`, mark ApplicationInstances as "Interrupted".
+   - If all ContestInstances are "Completed" or "Interrupted", transition ProcedureInstance to next stage.
+6. **ContestTemplate Version Update**:
+   - Receive `ContestTemplateUpdated` event, update `ContestTemplateVersion` and `StageConfigurations` (e.g., new DefaultServiceName) in running ContestInstances, preserving stage sequence and StatusModel.
+
+**Notes**:
+- Ensure the Contests stage is mandatory in ProcedureTemplate validation.
+- Lock stage sequences and StatusModel after publication.
+- Use transactions for database updates to ensure consistency.
+- Log all RabbitMQ events with `IntegrationEventId` for traceability.
+- Provide clear error messages for invalid JSON or orchestrator actions in the frontend.
+
+Ensure the code is modular, well-documented, and follows best practices for .NET 8 and Angular 17. Use minimal external dependencies beyond EF Core, EasyNetQ, and Angular. Provide a complete project structure compatible with Replit, including all necessary files, migrations, and configurations.

@@ -1,0 +1,131 @@
+<div class="container">
+  <div class="card">
+    <div class="card-header">
+      <h3>Create Contest Instance</h3>
+    </div>
+    <div class="card-body">
+      <div *ngIf="error" class="alert alert-danger">{{ error }}</div>
+      <div *ngIf="successMessage" class="alert alert-success">{{ successMessage }}</div>
+
+      <form [formGroup]="instanceForm" (ngSubmit)="submitForm()">
+        <div class="row mb-3">
+          <div class="col-md-6">
+            <label for="procedureInstanceId" class="form-label">Procedure Instance:</label>
+            <select
+              id="procedureInstanceId"
+              formControlName="procedureInstanceId"
+              class="form-select"
+              [ngClass]="{'is-invalid': instanceForm.get('procedureInstanceId')?.invalid && instanceForm.get('procedureInstanceId')?.touched}"
+              [disabled]="!!procedureId"
+              (change)="onProcedureInstanceChange()"
+            >
+              <option value="">Select a procedure instance</option>
+              <option *ngFor="let instance of procedureInstances" [value]="instance.id">
+                {{ instance.name }}
+              </option>
+            </select>
+            <div class="invalid-feedback" *ngIf="instanceForm.get('procedureInstanceId')?.errors?.['required']">
+              Procedure instance is required
+            </div>
+          </div>
+          <div class="col-md-6">
+            <label for="contestTemplateId" class="form-label">Contest Template:</label>
+            <select
+              id="contestTemplateId"
+              formControlName="contestTemplateId"
+              class="form-select"
+              [ngClass]="{'is-invalid': instanceForm.get('contestTemplateId')?.invalid && instanceForm.get('contestTemplateId')?.touched}"
+            >
+              <option value="">Select a contest template</option>
+              <option *ngFor="let template of contestTemplates" [value]="template.id">
+                {{ template.name }} (v{{ template.version }})
+              </option>
+            </select>
+            <div class="invalid-feedback" *ngIf="instanceForm.get('contestTemplateId')?.errors?.['required']">
+              Contest template is required
+            </div>
+          </div>
+        </div>
+
+        <div class="mb-3">
+          <label for="name" class="form-label">Instance Name:</label>
+          <input
+            type="text"
+            id="name"
+            formControlName="name"
+            class="form-control"
+            placeholder="Spring Subsidy Contest 2023"
+            [ngClass]="{'is-invalid': instanceForm.get('name')?.invalid && instanceForm.get('name')?.touched}"
+          >
+          <div class="invalid-feedback" *ngIf="instanceForm.get('name')?.errors?.['required']">
+            Name is required
+          </div>
+        </div>
+
+        <div *ngIf="selectedTemplate">
+          <h4 class="mb-3">Stage Configurations</h4>
+          <div class="alert alert-info" *ngIf="stageConfigurations.length === 0">
+            No stages available in the selected template.
+          </div>
+
+          <div formArrayName="stageConfigurations">
+            <div *ngFor="let configForm of stageConfigurations.controls; let i = index" [formGroupName]="i" class="card mb-3">
+              <div class="card-header">
+                <h5>{{ getStageTypeName(i) }} Stage</h5>
+              </div>
+              <div class="card-body">
+                <div class="row mb-3">
+                  <div class="col-md-4">
+                    <label [for]="'startDate-' + i" class="form-label">Start Date:</label>
+                    <input
+                      [id]="'startDate-' + i"
+                      type="datetime-local"
+                      formControlName="startDate"
+                      class="form-control"
+                    >
+                    <small class="form-text text-muted">Optional start date for this stage</small>
+                  </div>
+                  <div class="col-md-4">
+                    <label [for]="'endDate-' + i" class="form-label">End Date:</label>
+                    <input
+                      [id]="'endDate-' + i"
+                      type="datetime-local"
+                      formControlName="endDate"
+                      class="form-control"
+                    >
+                    <small class="form-text text-muted">Optional end date for this stage</small>
+                  </div>
+                  <div class="col-md-4">
+                    <label [for]="'serviceName-' + i" class="form-label">Service Name:</label>
+                    <input
+                      [id]="'serviceName-' + i"
+                      type="text"
+                      formControlName="serviceName"
+                      class="form-control"
+                      [ngClass]="{'is-invalid': configForm.get('serviceName')?.invalid && configForm.get('serviceName')?.touched}"
+                    >
+                    <div class="invalid-feedback" *ngIf="configForm.get('serviceName')?.errors?.['required']">
+                      Service name is required
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="d-flex justify-content-between">
+          <button type="button" class="btn btn-secondary" (click)="cancel()">Cancel</button>
+          <button
+            type="submit"
+            class="btn btn-primary"
+            [disabled]="loading || instanceForm.invalid"
+          >
+            <span *ngIf="loading" class="spinner-border spinner-border-sm me-1"></span>
+            Create Contest Instance
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>

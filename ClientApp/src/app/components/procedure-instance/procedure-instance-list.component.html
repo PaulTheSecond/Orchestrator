@@ -1,0 +1,202 @@
+<div class="container">
+  <!-- List View -->
+  <div *ngIf="!selectedInstance" class="card">
+    <div class="card-header d-flex justify-content-between align-items-center">
+      <h3>Procedure Instances</h3>
+      <button class="btn btn-primary" (click)="createInstance()">
+        <i class="bi bi-plus-circle"></i> Create Instance
+      </button>
+    </div>
+    <div class="card-body">
+      <div *ngIf="error" class="alert alert-danger alert-dismissible">
+        {{ error }}
+        <button type="button" class="btn-close" (click)="dismissAlert()"></button>
+      </div>
+      <div *ngIf="successMessage" class="alert alert-success alert-dismissible">
+        {{ successMessage }}
+        <button type="button" class="btn-close" (click)="dismissAlert()"></button>
+      </div>
+
+      <div *ngIf="loading" class="text-center my-3">
+        <div class="spinner-border text-primary"></div>
+        <p class="mt-2">Loading procedure instances...</p>
+      </div>
+
+      <div *ngIf="!loading && procedureInstances.length === 0" class="alert alert-info">
+        No procedure instances found. Click 'Create Instance' to add one.
+      </div>
+
+      <div *ngIf="!loading && procedureInstances.length > 0" class="table-responsive">
+        <table class="table table-hover">
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>Template Version</th>
+              <th>Current Stage</th>
+              <th>Status</th>
+              <th>Created</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr *ngFor="let instance of procedureInstances">
+              <td>
+                <a href="javascript:void(0)" (click)="viewInstance(instance.id!)">{{ instance.name }}</a>
+              </td>
+              <td>v{{ instance.templateVersion }}</td>
+              <td>{{ getCurrentStageName(instance) }}</td>
+              <td>
+                <span class="badge" [ngClass]="getStatusClass(instance.status)">
+                  {{ instance.status }}
+                </span>
+              </td>
+              <td>{{ instance.createdAt | date:'short' }}</td>
+              <td>
+                <div class="btn-group">
+                  <button class="btn btn-sm btn-outline-primary" (click)="viewInstance(instance.id!)">
+                    <i class="bi bi-eye"></i> Details
+                  </button>
+                  <button 
+                    class="btn btn-sm btn-outline-success" 
+                    (click)="transitionToNextStage(instance.id!)"
+                    [disabled]="instance.status !== 'Active' || !instance.currentStageId">
+                    <i class="bi bi-arrow-right-circle"></i> Next Stage
+                  </button>
+                </div>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- Detail View -->
+  <div *ngIf="selectedInstance" class="card">
+    <div class="card-header d-flex justify-content-between align-items-center">
+      <div>
+        <button class="btn btn-sm btn-outline-secondary me-2" (click)="goBack()">
+          <i class="bi bi-arrow-left"></i> Back
+        </button>
+        <span class="h3">{{ selectedInstance.name }}</span>
+      </div>
+      <div>
+        <button 
+          class="btn btn-success me-2" 
+          (click)="transitionToNextStage(selectedInstance.id!)"
+          [disabled]="selectedInstance.status !== 'Active' || !selectedInstance.currentStageId">
+          <i class="bi bi-arrow-right-circle"></i> Move to Next Stage
+        </button>
+        <button 
+          class="btn btn-primary" 
+          (click)="createContestInstance(selectedInstance.id!)"
+          [disabled]="selectedInstance.status !== 'Active' || !selectedInstance.currentStageId || selectedInstance.currentStageId.toString().indexOf('Contests') === -1">
+          <i class="bi bi-plus-circle"></i> Create Contest
+        </button>
+      </div>
+    </div>
+    <div class="card-body">
+      <div *ngIf="error" class="alert alert-danger alert-dismissible">
+        {{ error }}
+        <button type="button" class="btn-close" (click)="dismissAlert()"></button>
+      </div>
+      <div *ngIf="successMessage" class="alert alert-success alert-dismissible">
+        {{ successMessage }}
+        <button type="button" class="btn-close" (click)="dismissAlert()"></button>
+      </div>
+
+      <div *ngIf="loading" class="text-center my-3">
+        <div class="spinner-border text-primary"></div>
+        <p class="mt-2">Loading procedure instance details...</p>
+      </div>
+
+      <div *ngIf="!loading">
+        <div class="row mb-4">
+          <div class="col-md-6">
+            <div class="card">
+              <div class="card-header">
+                <h5>Procedure Details</h5>
+              </div>
+              <div class="card-body">
+                <table class="table table-bordered">
+                  <tbody>
+                    <tr>
+                      <th style="width: 150px;">Template Version:</th>
+                      <td>v{{ selectedInstance.templateVersion }}</td>
+                    </tr>
+                    <tr>
+                      <th>Current Stage:</th>
+                      <td>{{ getCurrentStageName(selectedInstance) }}</td>
+                    </tr>
+                    <tr>
+                      <th>Status:</th>
+                      <td>
+                        <span class="badge" [ngClass]="getStatusClass(selectedInstance.status)">
+                          {{ selectedInstance.status }}
+                        </span>
+                      </td>
+                    </tr>
+                    <tr>
+                      <th>Created:</th>
+                      <td>{{ selectedInstance.createdAt | date:'medium' }}</td>
+                    </tr>
+                    <tr>
+                      <th>Last Updated:</th>
+                      <td>{{ selectedInstance.updatedAt | date:'medium' }}</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <h4>Contest Instances</h4>
+        
+        <div *ngIf="!selectedInstance.contestInstances || selectedInstance.contestInstances.length === 0" class="alert alert-info">
+          No contest instances found. If this procedure is in the Contests stage, click 'Create Contest' to add one.
+        </div>
+
+        <div *ngIf="selectedInstance.contestInstances && selectedInstance.contestInstances.length > 0" class="table-responsive">
+          <table class="table table-hover">
+            <thead>
+              <tr>
+                <th>Name</th>
+                <th>Template Version</th>
+                <th>Status</th>
+                <th>Start Date</th>
+                <th>End Date</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr *ngFor="let contest of selectedInstance.contestInstances">
+                <td>
+                  <a href="javascript:void(0)" (click)="viewContestInstance(contest.id!)">{{ contest.name }}</a>
+                </td>
+                <td>v{{ contest.contestTemplateVersion }}</td>
+                <td>
+                  <span class="badge" [ngClass]="'status-' + contest.status.toLowerCase()">
+                    {{ contest.status }}
+                  </span>
+                </td>
+                <td>{{ contest.startDate | date:'short' }}</td>
+                <td>{{ contest.endDate | date:'short' }}</td>
+                <td>
+                  <div class="btn-group">
+                    <button class="btn btn-sm btn-outline-primary" (click)="viewContestInstance(contest.id!)">
+                      <i class="bi bi-eye"></i> Details
+                    </button>
+                    <button class="btn btn-sm btn-outline-info" (click)="viewContestApplications(contest.id!)">
+                      <i class="bi bi-list-check"></i> Applications
+                    </button>
+                  </div>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

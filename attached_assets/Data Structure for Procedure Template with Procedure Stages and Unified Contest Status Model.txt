@@ -1,0 +1,312 @@
+**Data Structure for Procedure Template with Procedure Stages**
+
+The **Procedure Template** is a global, reusable template (e.g., "Subsidy Procedure") with integer-based versioning, defining its own stages (e.g., Setup, Contests, Contracts, Reporting), where the Contests stage is mandatory, and others are optional. The Contests stage manages the creation and configuration of **Contest Instances**. Each **Contest Template** defines a fixed sequence of stages (e.g., ApplicationSubmission, Validation, Expertise, FundAllocation, WinnerAnnouncement) and a unified status model for all Contest Instances. Stage order is immutable after publication. Dates and service names for contest stages are configured in **StageConfiguration** within Contest Instances. Contest Instances support interruption, completion, and versioning updates from new published **ContestTemplate** versions. The orchestrator processes stage results and version update events. The structure is stored in PostgreSQL.
+
+### Entities and Relationships
+
+1. **ProcedureTemplate**
+   - **Description**: A global, reusable template defining procedure stages, with Contests mandatory.
+   - **Fields**:
+     - `Id` (Guid): Unique identifier.
+     - `Name` (string): Name of the procedure (e.g., "Subsidy Procedure").
+     - `Version` (int): Version of the template (e.g., 1, 2, 3).
+     - `IsPublished` (bool): Indicates whether the template is published.
+     - `CreatedAt` (DateTime): Creation timestamp.
+     - `UpdatedAt` (DateTime): Last update timestamp.
+     - `ProcedureStages` (List<ProcedureStageTemplate>): Ordered list of procedure stages.
+     - `ContestTemplates` (List<ContestTemplate>): Collection of contest templates.
+   - **Constraints**:
+     - Only one version can be published at a time.
+     - Must include a Contests stage; other stages (Setup, Contracts, Reporting) are optional.
+     - Stage order is immutable after publication.
+
+2. **ProcedureStageTemplate**
+   - **Description**: Defines a stage in the ProcedureTemplate (e.g., Setup, Contests, Contracts, Reporting).
+   - **Fields**:
+     - `Id` (Guid): Unique identifier.
+     - `ProcedureTemplateId` (Guid): Foreign key to ProcedureTemplate.
+     - `StageType` (Enum/String): Type of stage (e.g., Setup, Contests, Contracts, Reporting).
+     - `Order` (int): Fixed position in the stage sequence.
+     - `PreviousStageId` (Guid?): Foreign key to predecessor stage (null if first).
+     - `NextStageId` (Guid?): Foreign key to successor stage (null if last).
+     - `DefaultServiceName` (string?): Default external service (optional, e.g., "ContractService").
+   - **Constraints**:
+     - Belongs to a single ProcedureTemplate.
+     - Sequence (Order, PreviousStageId, NextStageId) is fixed after publication.
+     - Contests stage is mandatory.
+
+3. **ContestTemplate**
+   - **Description**: Defines a contest with a fixed stage sequence and unified status model.
+   - **Fields**:
+     - `Id` (Guid): Unique identifier.
+     - `ProcedureTemplateId` (Guid): Foreign key to ProcedureTemplate.
+     - `Name` (string): Name of the contest (e.g., "Subsidy Contest 2025").
+     - `Version` (int): Version of the contest template (e.g., 1, 2, 3).
+     - `IsPublished` (bool): Indicates whether the contest template is published.
+     - `StatusModel` (Enum/String[]): List of valid statuses (e.g., ["NotStarted", "InProgress", "Completed", "Interrupted"]).
+     - `Stages` (List<StageTemplate>): Ordered list of contest stages.
+   - **Constraints**:
+     - Belongs to a single ProcedureTemplate.
+     - Stage sequence and StatusModel are fixed after publication.
+
+4. **StageTemplate**
+   - **Description**: Defines a stage in a ContestTemplate, no dates in the template.
+   - **Fields**:
+     - `Id` (Guid): Unique identifier.
+     - `ContestTemplateId` (Guid): Foreign key to ContestTemplate.
+     - `StageType` (Enum/String): Type of stage (e.g., ApplicationSubmission, Validation, Expertise, FundAllocation, WinnerAnnouncement).
+     - `Order` (int): Fixed position in the stage sequence.
+     - `PreviousStageId` (Guid?): Foreign key to predecessor stage (null if first).
+     - `NextStageId` (Guid?): Foreign key to successor stage (null if last).
+     - `DefaultServiceName` (string): Default external service (e.g., "ApplicationService").
+   - **Constraints**:
+     - Belongs to a single ContestTemplate.
+     - Sequence (Order, PreviousStageId, NextStageId) is fixed after publication.
+
+5. **ProcedureInstance**
+   - **Description**: Represents a running instance of a published ProcedureTemplate.
+   - **Fields**:
+     - `Id` (Guid): Unique identifier.
+     - `ProcedureTemplateId` (Guid): Foreign key to ProcedureTemplate.
+     - `TemplateVersion` (int): Integer version of the ProcedureTemplate.
+     - `Name` (string): Name of the procedure instance (e.g., "Subsidy Procedure 2025").
+     - `CurrentStageId` (Guid?): Foreign key to current ProcedureStageTemplate (null if not started or completed).
+     - `Status` (Enum/String): Status (e.g., "Active", "Completed", "Paused").
+     - `CreatedAt` (DateTime): Creation timestamp.
+     - `UpdatedAt` (DateTime): Last update timestamp.
+     - `ContestInstances` (List<ContestInstance>): Collection of contest instances.
+   - **Constraints**:
+     - Created from a published ProcedureTemplate.
+     - TemplateVersion is immutable.
+     - CurrentStageId reflects the current procedure stage.
+
+6. **ContestInstance**
+   - **Description**: Represents a running contest created during the Contests stage, with customizable stage parameters.
+   - **Fields**:
+     - `Id` (Guid): Unique identifier.
+     - `ProcedureInstanceId` (Guid): Foreign key to ProcedureInstance.
+     - `ContestTemplateId` (Guid): Foreign key to ContestTemplate.
+     - `ContestTemplateVersion` (int): Integer version of the ContestTemplate.
+     - `Name` (string): Name of the contest instance (e.g., "Subsidy Contest Q1 2025").
+     - `CurrentStageId` (Guid?): Foreign key to current StageTemplate (null if not started or completed).
+     - `Status` (Enum/String): Status from ContestTemplate’s StatusModel (e.g., "NotStarted", "InProgress", "Completed", "Interrupted").
+     - `StartDate` (DateTime?): Start date of the contest instance.
+     - `EndDate` (DateTime?): End date (set on completion or interruption).
+     - `StageConfigurations` (List<StageConfiguration>): Custom stage configurations.
+     - `ApplicationInstances` (List<ApplicationInstance>): Collection of applications.
+   - **Constraints**:
+     - Belongs to a single ProcedureInstance and ContestTemplate.
+     - CurrentStageId references a StageTemplate.
+     - Status must be from ContestTemplate’s StatusModel.
+     - Stage sequence is inherited from ContestTemplate and cannot be changed.
+
+7. **StageConfiguration**
+   - **Description**: Stores customized stage parameters for a ContestInstance.
+   - **Fields**:
+     - `Id` (Guid): Unique identifier.
+     - `ContestInstanceId` (Guid): Foreign key to ContestInstance.
+     - `StageTemplateId` (Guid): Foreign key to StageTemplate.
+     - `StartDate` (DateTime?): Customized start date.
+     - `EndDate` (DateTime?): Customized end date.
+     - `ServiceName` (string): Customized external service (overrides DefaultServiceName).
+   - **Constraints**:
+     - Belongs to a single ContestInstance and StageTemplate.
+     - Cannot modify stage sequence.
+
+8. **ApplicationInstance**
+   - **Description**: Represents an individual application within a ContestInstance.
+   - **Fields**:
+     - `Id` (Guid): Unique identifier.
+     - `ContestInstanceId` (Guid): Foreign key to ContestInstance.
+     - `CurrentStageId` (Guid?): Foreign key to current StageTemplate.
+     - `Status` (Enum/String): Status (e.g., "Submitted", "Validated", "Approved", "Rejected", "Interrupted").
+     - `CreatedAt` (DateTime): Creation timestamp.
+     - `UpdatedAt` (DateTime): Last update timestamp.
+     - `ExternalApplicationId` (Guid?): Optional identifier for external systems.
+     - `StageResults` (List<StageResult>): Collection of stage results.
+   - **Constraints**:
+     - Belongs to a single ContestInstance.
+     - Status is updated based on stage outcomes or contest interruption.
+
+9. **StageResult**
+   - **Description**: Stores the result of a completed stage for an ApplicationInstance.
+   - **Fields**:
+     - `Id` (Guid): Unique identifier.
+     - `ApplicationInstanceId` (Guid): Foreign key to ApplicationInstance.
+     - `StageTemplateId` (Guid): Foreign key to StageTemplate.
+     - `ResultStatus` (Enum/String): Outcome (e.g., "Success", "Failed", "Rejected").
+     - `ResultData` (string/JSON?): Optional details (e.g., validation errors).
+     - `CompletedAt` (DateTime): Completion timestamp.
+     - `IntegrationEventId` (Guid): Reference to RabbitMQ event.
+   - **Constraints**:
+     - Belongs to a single ApplicationInstance.
+
+### Context Tracking and Orchestration
+- **Procedure Stage Tracking**:
+  - `CurrentStageId` in **ProcedureInstance** tracks the current procedure stage (e.g., Setup, Contests).
+  - During the Contests stage, ContestInstances are created and configured (e.g., StageConfiguration for dates and services).
+  - The orchestrator transitions ProcedureInstance to the next stage (e.g., Contracts, Reporting) when all ContestInstances complete or are interrupted, if those stages are present.
+
+- **Contest Stage Tracking**:
+  - `CurrentStageId` in **ApplicationInstance** tracks the current contest stage for each application.
+  - `CurrentStageId` in **ContestInstance** tracks the overall contest stage (if synchronized).
+  - Upon receiving a stage result via RabbitMQ, the orchestrator:
+    - Stores the result in **StageResult**.
+    - Updates ApplicationInstance’s `Status` and `CurrentStageId` based on `ResultStatus` (moves to next stage or terminates if rejected).
+    - Publishes a RabbitMQ event to the external service (from StageConfiguration’s `ServiceName`) for the next stage.
+  - ContestInstance completes when all applications finish all stages (`Status` = "Completed", `EndDate` set).
+  - ContestInstance can be interrupted via a RabbitMQ event, setting `Status` to "Interrupted", updating `EndDate`, and marking all ApplicationInstances as "Interrupted".
+
+- **Unified Status Model**:
+  - The `StatusModel` in **ContestTemplate** defines valid statuses (e.g., ["NotStarted", "InProgress", "Completed", "Interrupted"]).
+  - All ContestInstances based on the same ContestTemplate use this status model.
+  - The orchestrator validates that ContestInstance’s `Status` is from the ContestTemplate’s StatusModel.
+
+- **ContestTemplate Versioning**:
+  - The orchestrator listens for `ContestTemplateUpdatedEvent` indicating a new published ContestTemplate version.
+  - Updates `ContestTemplateVersion` and `StageConfigurations` in running ContestInstances to reflect new stage parameters (e.g., DefaultServiceName), preserving fixed stage sequence and StatusModel.
+  - Only ContestInstances with matching ContestTemplateId are updated.
+
+- **Orchestration Context**:
+  - RabbitMQ messages include `ProcedureInstanceId`, `ContestInstanceId`, `ApplicationInstanceId`, `CurrentStageId`, and `IntegrationEventId`.
+  - The database ensures recovery after failures.
+
+### Sample JSON for ProcedureTemplate
+```json
+{
+  "id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+  "name": "Subsidy Procedure",
+  "version": 1,
+  "isPublished": false,
+  "procedureStages": [
+    {
+      "id": "1a2b3c4d-5e6f-7a8b-9c0d-1e2f3a4b5c6d",
+      "stageType": "Setup",
+      "order": 1,
+      "previousStageId": null,
+      "nextStageId": "2b3c4d5e-6f7a-8b9c-0d1e-2f3a4b5c6d7e",
+      "defaultServiceName": "SetupService"
+    },
+    {
+      "id": "2b3c4d5e-6f7a-8b9c-0d1e-2f3a4b5c6d7e",
+      "stageType": "Contests",
+      "order": 2,
+      "previousStageId": "1a2b3c4d-5e6f-7a8b-9c0d-1e2f3a4b5c6d",
+      "nextStageId": "3c4d5e6f-7a8b-9c0d-1e2f-3a4b5c6d7e8f",
+      "defaultServiceName": null
+    },
+    {
+      "id": "3c4d5e6f-7a8b-9c0d-1e2f-3a4b5c6d7e8f",
+      "stageType": "Contracts",
+      "order": 3,
+      "previousStageId": "2b3c4d5e-6f7a-8b9c-0d1e-2f3a4b5c6d7e",
+      "nextStageId": "4d5e6f7a-8b9c-0d1e-2f3a-4b5c6d7e8f9a",
+      "defaultServiceName": "ContractService"
+    },
+    {
+      "id": "4d5e6f7a-8b9c-0d1e-2f3a-4b5c6d7e8f9a",
+      "stageType": "Reporting",
+      "order": 4,
+      "previousStageId": "3c4d5e6f-7a8b-9c0d-1e2f-3a4b5c6d7e8f",
+      "nextStageId": null,
+      "defaultServiceName": "ReportingService"
+    }
+  ],
+  "contestTemplates": [
+    {
+      "id": "4b9e2c1a-8e3f-4d9c-b2a1-7d2e9f66afa6",
+      "name": "Subsidy Contest 2025",
+      "version": 1,
+      "isPublished": false,
+      "statusModel": ["NotStarted", "InProgress", "Completed", "Interrupted"],
+      "stages": [
+        {
+          "id": "5c8d3e2b-9f4a-5e0d-c3b2-8e3f0a77bgb7",
+          "stageType": "ApplicationSubmission",
+          "order": 1,
+          "previousStageId": null,
+          "nextStageId": "6d9e4f3c-0a5b-6f1e-d4c3-9f4a1b88chc8",
+          "defaultServiceName": "ApplicationService"
+        },
+        {
+          "id": "6d9e4f3c-0a5b-6f1e-d4c3-9f4a1b88chc8",
+          "stageType": "Validation",
+          "order": 2,
+          "previousStageId": "5c8d3e2b-9f4a-5e0d-c3b2-8e3f0a77bgb7",
+          "nextStageId": null,
+          "defaultServiceName": "ValidationService"
+        }
+      ]
+    }
+  ]
+}
+```
+
+### Sample JSON for ProcedureInstance Context
+```json
+{
+  "id": "7e9f5g6d-1b2c-3d4e-5f6a-7b8c9d0e1f2a",
+  "procedureTemplateId": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+  "templateVersion": 1,
+  "name": "Subsidy Procedure 2025",
+  "currentStageId": "2b3c4d5e-6f7a-8b9c-0d1e-2f3a4b5c6d7e",
+  "status": "Active",
+  "createdAt": "2025-04-30T00:00:00Z",
+  "updatedAt": "2025-04-30T00:00:00Z",
+  "contestInstances": [
+    {
+      "id": "8f0a6h7e-2c3d-4e5f-6a7b-8c9d0e1f2a3b",
+      "contestTemplateId": "4b9e2c1a-8e3f-4d9c-b2a1-7d2e9f66afa6",
+      "contestTemplateVersion": 1,
+      "name": "Subsidy Contest Q1 2025",
+      "currentStageId": "5c8d3e2b-9f4a-5e0d-c3b2-8e3f0a77bgb7",
+      "status": "InProgress",
+      "startDate": "2025-05-01T00:00:00Z",
+      "endDate": null,
+      "stageConfigurations": [
+        {
+          "id": "a1b2c3d4-5e6f-7a8b-9c0d-1e2f3a4b5c6d",
+          "stageTemplateId": "5c8d3e2b-9f4a-5e0d-c3b2-8e3f0a77bgb7",
+          "startDate": "2025-05-01T00:00:00Z",
+          "endDate": "2025-05-15T23:59:59Z",
+          "serviceName": "CustomApplicationService"
+        },
+        {
+          "id": "b2c3d4e5-6f7a-8b9c-0d1e-2f3a4b5c6d7e",
+          "stageTemplateId": "6d9e4f3c-0a5b-6f1e-d4c3-9f4a1b88chc8",
+          "startDate": "2025-05-16T00:00:00Z",
+          "endDate": "2025-05-20T23:59:59Z",
+          "serviceName": "CustomValidationService"
+        }
+      ],
+      "applicationInstances": [
+        {
+          "id": "9g1b7i8f-3d4e-5f6a-7b8c-9d0e1f2a3b4c",
+          "currentStageId": "5c8d3e2b-9f4a-5e0d-c3b2-8e3f0a77bgb7",
+          "status": "Submitted",
+          "createdAt": "2025-05-01T10:00:00Z",
+          "updatedAt": "2025-05-01T10:00:00Z",
+          "externalApplicationId": "a2c8j9g0-4e5f-6a7b-8c9d-0e1f2a3b4c5d",
+          "stageResults": [
+            {
+              "id": "b3d9i0j1-5f6a-7b8c-9d0e-1f2a3b4c5d6e",
+              "applicationInstanceId": "9g1b7i8f-3d4e-5f6a-7b8c-9d0e1f2a3b4c",
+              "stageTemplateId": "5c8d3e2b-9f4a-5e0d-c3b2-8e3f0a77bgb7",
+              "resultStatus": "Success",
+              "resultData": "{\"details\": \"Application submitted successfully\"}",
+              "completedAt": "2025-05-01T10:05:00Z",
+              "integrationEventId": "c4e0j1k2-6a7b-8c9d-0e1f-2a3b4c5d6e7f"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
+```
+
+### Notes
+- **ProcedureStageTemplate** defines procedure-level stages, with Contests mandatory.
+- Contest stages exclude Contracts and Reporting, which are now procedure-level stages.
+- ContestInstance creation and configuration occur during the Contests stage of ProcedureInstance.
+- The orchestrator manages both procedure and contest stage transitions, ensuring the unified status model for contests.

@@ -1,0 +1,132 @@
+/* Import Bootstrap */
+@import 'bootstrap/dist/css/bootstrap.min.css';
+
+/* Global Styles */
+body {
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  background-color: #f8f9fa;
+}
+
+.container {
+  margin-top: 20px;
+}
+
+.card {
+  margin-bottom: 20px;
+  box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+}
+
+.card-header {
+  background-color: #f8f9fa;
+  font-weight: 600;
+}
+
+/* Form Styles */
+.json-editor {
+  font-family: 'Consolas', 'Monaco', monospace;
+  height: 300px;
+  resize: vertical;
+}
+
+.json-error {
+  color: #dc3545;
+  font-size: 0.875rem;
+  margin-top: 0.25rem;
+}
+
+/* Button Styles */
+.btn-primary {
+  background-color: #007bff;
+}
+
+.btn-success {
+  background-color: #28a745;
+}
+
+.btn-danger {
+  background-color: #dc3545;
+}
+
+/* Status Indicators */
+.status-badge {
+  padding: 0.35em 0.65em;
+  border-radius: 0.375rem;
+  font-size: 0.75em;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.status-active, .status-inprogress, .status-submitted {
+  background-color: #17a2b8;
+  color: white;
+}
+
+.status-completed, .status-approved {
+  background-color: #28a745;
+  color: white;
+}
+
+.status-interrupted, .status-rejected, .status-failed {
+  background-color: #dc3545;
+  color: white;
+}
+
+.status-notstarted {
+  background-color: #6c757d;
+  color: white;
+}
+
+/* Navigation */
+.nav-link.active {
+  font-weight: bold;
+  color: #007bff !important;
+}
+
+/* Tables */
+.table th {
+  background-color: #f8f9fa;
+}
+
+/* Utilities */
+.cursor-pointer {
+  cursor: pointer;
+}
+
+.text-truncate {
+  max-width: 200px;
+  display: inline-block;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .container {
+    padding: 0 10px;
+  }
+  
+  .table-responsive {
+    font-size: 0.875rem;
+  }
+}
+
+/* Stage visualization */
+.stage-item {
+  display: inline-block;
+  margin-right: 10px;
+  padding: 5px 10px;
+  border-radius: 4px;
+  background-color: #e9ecef;
+}
+
+.stage-item.current {
+  background-color: #007bff;
+  color: white;
+}
+
+.stage-arrow {
+  display: inline-block;
+  margin: 0 5px;
+  color: #6c757d;
+}

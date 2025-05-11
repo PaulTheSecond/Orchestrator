@@ -1,0 +1,198 @@
+<div class="container">
+  <div class="card" *ngIf="!selectedApplication">
+    <div class="card-header d-flex justify-content-between align-items-center">
+      <div>
+        <button class="btn btn-sm btn-outline-secondary me-2" (click)="viewContestInstance()">
+          <i class="bi bi-arrow-left"></i> Back to Contest
+        </button>
+        <span class="h3">Applications for {{ contestInstance?.name || 'Contest' }}</span>
+      </div>
+      <button class="btn btn-primary" (click)="createApplication()" [disabled]="contestInstance?.status === 'Completed' || contestInstance?.status === 'Interrupted'">
+        <i class="bi bi-plus-circle"></i> Create Application
+      </button>
+    </div>
+    <div class="card-body">
+      <div *ngIf="error" class="alert alert-danger alert-dismissible">
+        {{ error }}
+        <button type="button" class="btn-close" (click)="dismissAlert()"></button>
+      </div>
+      <div *ngIf="successMessage" class="alert alert-success alert-dismissible">
+        {{ successMessage }}
+        <button type="button" class="btn-close" (click)="dismissAlert()"></button>
+      </div>
+
+      <div *ngIf="loading" class="text-center my-3">
+        <div class="spinner-border text-primary"></div>
+        <p class="mt-2">Loading applications...</p>
+      </div>
+
+      <div *ngIf="!loading && applications.length === 0" class="alert alert-info">
+        No applications found. Click 'Create Application' to add one.
+      </div>
+
+      <div *ngIf="!loading && applications.length > 0" class="table-responsive">
+        <table class="table table-hover">
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>Status</th>
+              <th>Current Stage</th>
+              <th>Created</th>
+              <th>Updated</th>
+              <th>Results</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr *ngFor="let application of applications">
+              <td>{{ application.id!.substring(0, 8) }}...</td>
+              <td>
+                <span class="badge" [ngClass]="getStatusClass(application.status)">
+                  {{ application.status }}
+                </span>
+              </td>
+              <td>{{ application.currentStageId ? (application.currentStageId.substring(0, 8) + '...') : 'N/A' }}</td>
+              <td>{{ application.createdAt | date:'short' }}</td>
+              <td>{{ application.updatedAt | date:'short' }}</td>
+              <td>{{ application.stageResults?.length || 0 }} results</td>
+              <td>
+                <button class="btn btn-sm btn-outline-primary" (click)="viewApplication(application)">
+                  <i class="bi bi-eye"></i> View Details
+                </button>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- Application Detail View -->
+  <div class="card" *ngIf="selectedApplication && !selectedResult">
+    <div class="card-header d-flex justify-content-between align-items-center">
+      <div>
+        <button class="btn btn-sm btn-outline-secondary me-2" (click)="closeApplicationView()">
+          <i class="bi bi-arrow-left"></i> Back to Applications
+        </button>
+        <span class="h3">Application {{ selectedApplication.id!.substring(0, 8) }}...</span>
+      </div>
+      <span class="badge" [ngClass]="getStatusClass(selectedApplication.status)">
+        {{ selectedApplication.status }}
+      </span>
+    </div>
+    <div class="card-body">
+      <div class="row mb-4">
+        <div class="col-md-6">
+          <div class="card">
+            <div class="card-header">
+              <h5>Application Details</h5>
+            </div>
+            <div class="card-body">
+              <table class="table table-bordered">
+                <tbody>
+                  <tr>
+                    <th style="width: 150px;">Application ID:</th>
+                    <td>{{ selectedApplication.id }}</td>
+                  </tr>
+                  <tr>
+                    <th>External ID:</th>
+                    <td>{{ selectedApplication.externalApplicationId || 'N/A' }}</td>
+                  </tr>
+                  <tr>
+                    <th>Status:</th>
+                    <td>
+                      <span class="badge" [ngClass]="getStatusClass(selectedApplication.status)">
+                        {{ selectedApplication.status }}
+                      </span>
+                    </td>
+                  </tr>
+                  <tr>
+                    <th>Current Stage:</th>
+                    <td>{{ selectedApplication.currentStageId || 'No current stage' }}</td>
+                  </tr>
+                  <tr>
+                    <th>Created:</th>
+                    <td>{{ selectedApplication.createdAt | date:'medium' }}</td>
+                  </tr>
+                  <tr>
+                    <th>Last Updated:</th>
+                    <td>{{ selectedApplication.updatedAt | date:'medium' }}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <h4>Stage Results</h4>
+      
+      <div *ngIf="!selectedApplication.stageResults || selectedApplication.stageResults.length === 0" class="alert alert-info">
+        No stage results available for this application.
+      </div>
+
+      <div *ngIf="selectedApplication.stageResults && selectedApplication.stageResults.length > 0" class="table-responsive">
+        <table class="table table-hover">
+          <thead>
+            <tr>
+              <th>Stage</th>
+              <th>Status</th>
+              <th>Completed At</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr *ngFor="let result of selectedApplication.stageResults">
+              <td>{{ result.stageTemplateId.substring(0, 8) }}...</td>
+              <td>
+                <span class="badge" [ngClass]="getResultStatusClass(result.resultStatus)">
+                  {{ result.resultStatus }}
+                </span>
+              </td>
+              <td>{{ result.completedAt | date:'medium' }}</td>
+              <td>
+                <button class="btn btn-sm btn-outline-info" (click)="viewResultDetails(result)" [disabled]="!result.resultData">
+                  <i class="bi bi-file-text"></i> View Result Data
+                </button>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- Result Detail View -->
+  <div class="card" *ngIf="selectedResult">
+    <div class="card-header d-flex justify-content-between align-items-center">
+      <div>
+        <button class="btn btn-sm btn-outline-secondary me-2" (click)="closeResultView()">
+          <i class="bi bi-arrow-left"></i> Back to Application
+        </button>
+        <span class="h3">Result Details</span>
+      </div>
+      <span class="badge" [ngClass]="getResultStatusClass(selectedResult.resultStatus)">
+        {{ selectedResult.resultStatus }}
+      </span>
+    </div>
+    <div class="card-body">
+      <div class="mb-3">
+        <strong>Stage:</strong> {{ selectedResult.stageTemplateId }}
+      </div>
+      <div class="mb-3">
+        <strong>Completed At:</strong> {{ selectedResult.completedAt | date:'medium' }}
+      </div>
+      <div class="mb-3">
+        <strong>Integration Event ID:</strong> {{ selectedResult.integrationEventId }}
+      </div>
+      <div class="card">
+        <div class="card-header">
+          <h5>Result Data</h5>
+        </div>
+        <div class="card-body">
+          <pre class="bg-light p-3 border rounded">{{ formatResultData(selectedResult.resultData) }}</pre>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
