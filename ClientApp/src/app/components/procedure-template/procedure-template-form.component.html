@@ -13,6 +13,16 @@
         </button>
       </div>
 
+      <!-- Procedure Diagram Section -->
+      <div *ngIf="templateForm.get('id')?.value" class="mb-4">
+        <h4 class="mb-3">Procedure Flow Diagram</h4>
+        <div class="card">
+          <div class="card-body">
+            <app-procedure-diagram [procedureTemplate]="templateForm.value"></app-procedure-diagram>
+          </div>
+        </div>
+      </div>
+
       <div *ngIf="jsonMode">
         <div class="mb-3">
           <label for="jsonEditor" class="form-label">Template JSON:</label>

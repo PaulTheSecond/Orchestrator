@@ -1,0 +1,5 @@
+{
+  "dependencies": {
+    "@syncfusion/ej2-diagrams": "^29.2.5"
+  }
+}

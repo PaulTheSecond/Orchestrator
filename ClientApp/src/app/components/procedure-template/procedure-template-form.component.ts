@@ -2,6 +2,7 @@ import { CommonModule } from "@angular/common";
 import { RouterModule } from "@angular/router";
 import { FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { Component, OnInit } from '@angular/core';
+import { ProcedureDiagramComponent } from '../procedure-diagram/procedure-diagram.component';
 import { FormBuilder, FormGroup, FormArray, Validators } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
 import { ProcedureTemplateService } from '../../services/procedure-template.service';
@@ -9,7 +10,7 @@ import { ProcedureTemplate, ProcedureStageTemplate } from '../../models/procedur
 
 @Component({
   standalone: true,
-  imports: [CommonModule, RouterModule, FormsModule, ReactiveFormsModule],
+  imports: [CommonModule, RouterModule, FormsModule, ReactiveFormsModule, ProcedureDiagramComponent],
   selector: 'app-procedure-template-form',
   templateUrl: './procedure-template-form.component.html'
 })
